@@ -1,0 +1,1 @@
+{"name":"changesnap","version":"0.2.0","private":true,"scripts":{"start":"node server.js","test":"node test-e2e.js"},"engines":{"node":">=20"},"dependencies":{"pg":"^8.13.1"}}
