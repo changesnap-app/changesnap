@@ -3,3 +3,5 @@ a{text-decoration:none}.account-wrap{max-width:520px}.form-msg{font-size:12px;co
 
 .language-select{display:inline-block;font-size:11px;color:#4d6259;font-weight:700;margin:0 10px 0 0;text-transform:none;letter-spacing:0}.language-select select{display:inline-block;width:auto;max-width:135px;margin:0 0 0 5px;padding:7px;border-radius:8px;font-size:12px}@media(max-width:620px){header{height:auto;min-height:76px;padding-top:12px;padding-bottom:12px;gap:8px;flex-wrap:wrap}.language-select{margin:0 3px}.language-select select{max-width:110px}}
 .hero .offer{margin-top:14px;color:#315741;font-weight:700}
+
+.estimate-home-actions{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:18px!important}.estimate-home-cta{display:inline-block;background:#ccec59;color:#18311e;border-radius:10px;padding:12px 18px;font-size:13px;font-weight:800}.estimate-home-actions span{color:#587166;font-size:12px}.change-section-title{margin:22px 0 16px}.change-section-title h2{font-size:21px;margin:0 0 5px}.change-section-title p{font-size:13px;color:#5d7568;margin:0;line-height:1.5}@media print{.change-section-title{display:none!important}}
