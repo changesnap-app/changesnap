@@ -31,6 +31,6 @@ function priceDisplay(html,code){
  const [one,month,country,title]=labels[code]||['One approval','Monthly','Billing country','Prices'];
  const panel=`<section class="price-panel" aria-label="${esc(title)}"><h2>${esc(title)}</h2><div class="price-head"><span>${esc(country)}</span><span>${esc(one)}</span><span>${esc(month)}</span></div>${rows.map(([c,cur,single,monthly])=>`<div class="price-row"><span class="price-country" dir="ltr">${flags[c]} ${c}</span><strong dir="ltr">${esc(single)} <small>${cur}</small></strong><strong dir="ltr">${esc(monthly)} <small>${cur}</small></strong></div>`).join('')}</section>`;
  if(!html.includes('<p class="free">')||!html.includes('</style>'))throw new Error('unexpected localized landing template');
- return html.replace('</style>',css+'</style>').replace(/(<p class="free">.*?<\/p>)/,'$1'+panel);
+ return html.replace('</style>',css+'</style>').replace(/(<p class="free">.*?<\/p>)/,(_,p)=>p+panel);
 }
 module.exports=priceDisplay;
