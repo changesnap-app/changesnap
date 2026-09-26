@@ -1,6 +1,6 @@
 // Apply the signed brand assets after Render copies the numbered source files.
 const fs=require('fs'),brandify=require('./37-brand.js');
-for(const file of ['index.html','account.html','approve.html','pricing.html','privacy.html','terms.html','refunds.html']){
+for(const file of ['index.html','account.html','approve.html','pricing.html','privacy.html','terms.html','refunds.html','4-cs-privacy.html','6-cs-terms.html','5-cs-refunds.html']){
  const html=fs.readFileSync(file,'utf8');
  fs.writeFileSync(file,brandify(html));
 }
