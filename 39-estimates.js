@@ -6,9 +6,36 @@ function clean(raw){if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Err
 function publicRecord(r){let {ownerId,approvalToken,signature,...data}=r;return data}
 function ownerRecord(r){return {...publicRecord(r),reviewUrl:'/estimate/review/'+r.approvalToken}}
 function setup({db,save,ledgerFile,isPostgres}){
- db.estimates ||= []; db.ledger ||= [];
+ db.estimates ||= []; db.invoices ||= []; db.ledger ||= [];
  async function handle(req,res,url,user){
-  const path=url.pathname,method=req.method,publicMatch=path.match(/^\/api\/estimates\/review\/([A-Za-z0-9_-]{30,})$/);
+  const path=url.pathname,method=req.method;
+  const invoiceView=path.match(/^\/api\/invoices\/view\/([A-Za-z0-9_-]{30,})$/);
+  if(invoiceView){
+   if(method!=='GET')return json(res,405,{error:'Method not allowed'});
+   let invoice=db.invoices.find(x=>x.publicToken===invoiceView[1]);
+   if(!invoice)return json(res,404,{error:'Invalid invoice link'});
+   res.setHeader('cache-control','no-store');
+   let {ownerId,publicToken,...display}=invoice;
+   return json(res,200,display);
+  }
+  if(path.startsWith('/api/invoices')){
+   if(!user)return json(res,401,{error:'Sign in'});
+   if(path==='/api/invoices'&&method==='GET')return json(res,200,db.invoices.filter(x=>x.ownerId===user.id).map(x=>{let {ownerId,publicToken,...record}=x;return {...record,viewUrl:'/invoice/view/'+publicToken}}));
+   if(path==='/api/invoices'&&method==='POST'){
+    let b=await body(req),estimate=db.estimates.find(x=>x.id===b.estimateId&&x.ownerId===user.id);
+    if(!estimate)return json(res,404,{error:'Estimate not found'});
+    if(estimate.status!=='accepted')return json(res,409,{error:'Invoice requires an accepted estimate'});
+    if(db.invoices.some(x=>x.estimateId===estimate.id))return json(res,409,{error:'This estimate already has an invoice'});
+    let dueDate=String(b.dueDate||'').trim();
+    if(dueDate&&!/^\d{4}-\d{2}-\d{2}$/.test(dueDate))return json(res,400,{error:'Invalid due date'});
+    if(dueDate&&(!Number.isFinite(Date.parse(dueDate))||new Date(dueDate).toISOString().slice(0,10)!==dueDate))return json(res,400,{error:'Invalid due date'});
+    let note=String(b.note||'').trim();if(note.length>500)return json(res,400,{error:'Note is too long'});
+    let issuedAt=new Date().toISOString(),r={id:id('inv_'),publicToken:token(),ownerId:user.id,invoiceNumber:'CS-'+issuedAt.slice(0,10).replace(/-/g,'')+'-'+crypto.randomBytes(4).toString('hex').toUpperCase(),jobId:estimate.jobId,estimateId:estimate.id,estimateVersion:estimate.version,estimateRecordHash:estimate.recordHash,acceptedAt:estimate.acceptedAt,customer:estimate.customer,project:estimate.project,scope:estimate.scope,labor:estimate.labor,materials:estimate.materials,tax:estimate.tax,terms:estimate.terms,business:estimate.business,contact:estimate.contact,dueDate,note,issuedAt,status:'issued'};
+    db.invoices.push(r);await save();return json(res,201,{id:r.id,invoiceNumber:r.invoiceNumber,viewUrl:'/invoice/view/'+r.publicToken});
+   }
+   return json(res,404,{error:'Not found'});
+  }
+  const publicMatch=path.match(/^\/api\/estimates\/review\/([A-Za-z0-9_-]{30,})$/);
   if(publicMatch){let r=db.estimates.find(x=>x.approvalToken===publicMatch[1]);if(!r)return json(res,404,{error:'Invalid estimate link'});
    if(method==='GET')return json(res,200,{...publicRecord(r),...(r.status==='accepted'?{signature:r.signature}:{})});
    if(method!=='POST')return json(res,405,{error:'Method not allowed'});
