@@ -5,6 +5,7 @@ const body=req=>new Promise((ok,no)=>{let chunks=[],length=0;req.on('data',x=>{l
 function clean(raw){if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('Invalid estimate');let o={};for(const k of ['customer','project','scope','labor','materials','tax','days','terms','business','contact']){let v=raw[k]??'';if(typeof v!=='string'&&typeof v!=='number')throw Error('Invalid '+k);o[k]=String(v).trim();if(o[k].length>(k==='scope'?2000:200))throw Error(k+' is too long')};if(!o.customer||!o.project||!o.scope||!o.business)throw Error('Customer, project, scope and business are required');for(const k of ['labor','materials','tax'])if(o[k]!==''&&(!/^\d+(?:\.\d{1,2})?$/.test(o[k])||+o[k]>1e8))throw Error('Invalid '+k);if(+o.tax>100)throw Error('Tax rate must be at most 100%');return o}
 function publicRecord(r){let {ownerId,approvalToken,signature,...data}=r;return data}
 function ownerRecord(r){return {...publicRecord(r),reviewUrl:'/estimate/review/'+r.approvalToken}}
+function paymentUrl(raw){if(raw==null||raw==='')return ''; if(typeof raw!=='string'||raw.length>500||/[\x00-\x20\x7f]/.test(raw))throw Error('Enter a valid HTTPS payment link (max 500 characters)');let u;try{u=new URL(raw)}catch{throw Error('Enter a valid HTTPS payment link')}if(u.protocol!=='https:'||!u.hostname.includes('.')||u.username||u.password||u.port||/^(localhost|.*\.localhost|.*\.local)$/i.test(u.hostname)||/^\d+(?:\.\d+){3}$/.test(u.hostname))throw Error('Use a public HTTPS payment link with no embedded login');return u.href}
 function setup({db,save,ledgerFile,isPostgres}){
  db.estimates ||= []; db.invoices ||= []; db.ledger ||= [];
  async function handle(req,res,url,user){
@@ -21,6 +22,8 @@ function setup({db,save,ledgerFile,isPostgres}){
   if(path.startsWith('/api/invoices')){
    if(!user)return json(res,401,{error:'Sign in'});
    if(path==='/api/invoices'&&method==='GET')return json(res,200,db.invoices.filter(x=>x.ownerId===user.id).map(x=>{let {ownerId,publicToken,...record}=x;return {...record,viewUrl:'/invoice/view/'+publicToken}}));
+   const invoiceUpdate=path.match(/^\/api\/invoices\/(inv_[A-Za-z0-9]+)\/payment-link$/);
+   if(invoiceUpdate&&method==='PUT'){let invoice=db.invoices.find(x=>x.id===invoiceUpdate[1]&&x.ownerId===user.id);if(!invoice)return json(res,404,{error:'Invoice not found'});let input=await body(req);try{invoice.paymentUrl=paymentUrl(input.paymentUrl)}catch(e){return json(res,400,{error:e.message})}await save();return json(res,200,{id:invoice.id,paymentUrl:invoice.paymentUrl})}
    if(path==='/api/invoices'&&method==='POST'){
     let b=await body(req),estimate=db.estimates.find(x=>x.id===b.estimateId&&x.ownerId===user.id);
     if(!estimate)return json(res,404,{error:'Estimate not found'});
@@ -30,7 +33,8 @@ function setup({db,save,ledgerFile,isPostgres}){
     if(dueDate&&!/^\d{4}-\d{2}-\d{2}$/.test(dueDate))return json(res,400,{error:'Invalid due date'});
     if(dueDate&&(!Number.isFinite(Date.parse(dueDate))||new Date(dueDate).toISOString().slice(0,10)!==dueDate))return json(res,400,{error:'Invalid due date'});
     let note=String(b.note||'').trim();if(note.length>500)return json(res,400,{error:'Note is too long'});
-    let issuedAt=new Date().toISOString(),r={id:id('inv_'),publicToken:token(),ownerId:user.id,invoiceNumber:'CS-'+issuedAt.slice(0,10).replace(/-/g,'')+'-'+crypto.randomBytes(4).toString('hex').toUpperCase(),jobId:estimate.jobId,estimateId:estimate.id,estimateVersion:estimate.version,estimateRecordHash:estimate.recordHash,acceptedAt:estimate.acceptedAt,customer:estimate.customer,project:estimate.project,scope:estimate.scope,labor:estimate.labor,materials:estimate.materials,tax:estimate.tax,terms:estimate.terms,business:estimate.business,contact:estimate.contact,dueDate,note,issuedAt,status:'issued'};
+    let link;try{link=paymentUrl(b.paymentUrl===undefined?user.paymentUrl:b.paymentUrl)}catch(e){return json(res,400,{error:e.message})}
+    let issuedAt=new Date().toISOString(),r={id:id('inv_'),publicToken:token(),ownerId:user.id,invoiceNumber:'CS-'+issuedAt.slice(0,10).replace(/-/g,'')+'-'+crypto.randomBytes(4).toString('hex').toUpperCase(),jobId:estimate.jobId,estimateId:estimate.id,estimateVersion:estimate.version,estimateRecordHash:estimate.recordHash,acceptedAt:estimate.acceptedAt,customer:estimate.customer,project:estimate.project,scope:estimate.scope,labor:estimate.labor,materials:estimate.materials,tax:estimate.tax,terms:estimate.terms,business:estimate.business,contact:estimate.contact,dueDate,note,paymentUrl:link,issuedAt,status:'issued'};
     db.invoices.push(r);await save();return json(res,201,{id:r.id,invoiceNumber:r.invoiceNumber,viewUrl:'/invoice/view/'+r.publicToken});
    }
    return json(res,404,{error:'Not found'});
@@ -67,4 +71,5 @@ function setup({db,save,ledgerFile,isPostgres}){
  }
  return handle;
 }
+setup.paymentUrl=paymentUrl;
 module.exports=setup;
