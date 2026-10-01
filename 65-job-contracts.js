@@ -29,6 +29,7 @@ module.exports=({db,save,ledgerFile,isPostgres,storage=require('./64-contract-st
   if(pub){
    const c=db.jobContracts.find(x=>x.reviewToken===pub[1]);
    if(!c)return reply(res,404,{error:'Invalid contract link'});
+   if(c.status==='revoked')return reply(res,410,{error:'This review link was revoked by the contractor.'});
    if(method!=='GET'&&!pub[2]&&method!=='POST')return reply(res,405,{error:'Method not allowed'});
    if(pub[2]){if(method!=='GET')return reply(res,405,{error:'Method not allowed'});return sendPage(res,c,Number(pub[3]))}
    if(method==='GET')return reply(res,200,publicView(c));
