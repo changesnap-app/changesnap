@@ -9,21 +9,24 @@ function paymentUrl(raw){if(raw==null||raw==='')return ''; if(typeof raw!=='stri
 function setup({db,save,ledgerFile,isPostgres}){
  db.estimates ||= []; db.invoices ||= []; db.ledger ||= [];
  const portal=require('./48-job-portal.js')({db,save});
+ const tracking=require('./51-payment-tracking.js').setup({db,save}), paymentSummary=require('./51-payment-tracking.js').summary;
  async function handle(req,res,url,user){
   if(url.pathname.startsWith('/api/estimates/portal/')||/^\/api\/estimates\/jobs\/job_[a-z0-9]+\/portal$/.test(url.pathname))return portal(req,res,url,user);
   const path=url.pathname,method=req.method;
+  if(/^\/api\/invoices\/inv_[A-Za-z0-9]+\/receipts/.test(path))return tracking(req,res,url,user);
   const invoiceView=path.match(/^\/api\/invoices\/view\/([A-Za-z0-9_-]{30,})$/);
   if(invoiceView){
    if(method!=='GET')return json(res,405,{error:'Method not allowed'});
    let invoice=db.invoices.find(x=>x.publicToken===invoiceView[1]);
    if(!invoice)return json(res,404,{error:'Invalid invoice link'});
    res.setHeader('cache-control','no-store');
-   let {ownerId,publicToken,...display}=invoice;
+   let {ownerId,publicToken,receipts,...display}=invoice;
+   display.paymentSummary=paymentSummary(invoice);
    return json(res,200,display);
   }
   if(path.startsWith('/api/invoices')){
    if(!user)return json(res,401,{error:'Sign in'});
-   if(path==='/api/invoices'&&method==='GET')return json(res,200,db.invoices.filter(x=>x.ownerId===user.id).map(x=>{let {ownerId,publicToken,...record}=x;return {...record,viewUrl:'/invoice/view/'+publicToken}}));
+   if(path==='/api/invoices'&&method==='GET')return json(res,200,db.invoices.filter(x=>x.ownerId===user.id).map(x=>{let {ownerId,publicToken,...record}=x;return {...record,paymentSummary:paymentSummary(x),viewUrl:'/invoice/view/'+publicToken}}));
    const invoiceUpdate=path.match(/^\/api\/invoices\/(inv_[A-Za-z0-9]+)\/payment-link$/);
    if(invoiceUpdate&&method==='PUT'){let invoice=db.invoices.find(x=>x.id===invoiceUpdate[1]&&x.ownerId===user.id);if(!invoice)return json(res,404,{error:'Invoice not found'});let input=await body(req);try{invoice.paymentUrl=paymentUrl(input.paymentUrl)}catch(e){return json(res,400,{error:e.message})}await save();return json(res,200,{id:invoice.id,paymentUrl:invoice.paymentUrl})}
    if(path==='/api/invoices'&&method==='POST'){
