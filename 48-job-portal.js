@@ -7,7 +7,7 @@ module.exports=function({db,save}){
  function docs(ownerId,jobId){return [
  ...db.estimates.filter(x=>x.ownerId===ownerId&&x.jobId===jobId).map(x=>({id:x.id,type:'estimate',label:'Estimate · version '+x.version,status:x.status,createdAt:x.createdAt,url:'/estimate/review/'+x.approvalToken})),
  ...db.changes.filter(x=>x.ownerId===ownerId&&x.jobId===jobId).map(x=>({id:x.id,type:'change',label:'Change order · '+new Date(x.createdAt).toISOString().slice(0,10),status:x.status,createdAt:x.createdAt,url:'/approve/'+x.approvalToken})),
- ...db.invoices.filter(x=>x.ownerId===ownerId&&x.jobId===jobId).map(x=>({id:x.id,type:'invoice',label:'Invoice '+x.invoiceNumber,status:'issued - payment not tracked',createdAt:x.issuedAt,url:'/invoice/view/'+x.publicToken}))
+ ...db.invoices.filter(x=>x.ownerId===ownerId&&x.jobId===jobId).map(x=>({id:x.id,type:'invoice',label:'Invoice '+x.invoiceNumber,status:(x.receipts?.length?'contractor recorded '+require('./51-payment-tracking.js').summary(x).status:'issued - no receipts recorded'),createdAt:x.issuedAt,url:'/invoice/view/'+x.publicToken}))
  ]}
  function view(p){let estimate=db.estimates.filter(x=>x.ownerId===p.ownerId&&x.jobId===p.jobId).at(-1);return {project:p.project,customer:p.customer,business:p.business,documents:docs(p.ownerId,p.jobId).filter(x=>p.documentIds.includes(x.id))}}
  return async function(req,res,url,user){
