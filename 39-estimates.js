@@ -8,7 +8,9 @@ function ownerRecord(r){return {...publicRecord(r),reviewUrl:'/estimate/review/'
 function paymentUrl(raw){if(raw==null||raw==='')return ''; if(typeof raw!=='string'||raw.length>500||/[\x00-\x20\x7f]/.test(raw))throw Error('Enter a valid HTTPS payment link (max 500 characters)');let u;try{u=new URL(raw)}catch{throw Error('Enter a valid HTTPS payment link')}if(u.protocol!=='https:'||!u.hostname.includes('.')||u.username||u.password||u.port||/^(localhost|.*\.localhost|.*\.local)$/i.test(u.hostname)||/^\d+(?:\.\d+){3}$/.test(u.hostname))throw Error('Use a public HTTPS payment link with no embedded login');return u.href}
 function setup({db,save,ledgerFile,isPostgres}){
  db.estimates ||= []; db.invoices ||= []; db.ledger ||= [];
+ const portal=require('./48-job-portal.js')({db,save});
  async function handle(req,res,url,user){
+  if(url.pathname.startsWith('/api/estimates/portal/')||/^\/api\/estimates\/jobs\/job_[a-z0-9]+\/portal$/.test(url.pathname))return portal(req,res,url,user);
   const path=url.pathname,method=req.method;
   const invoiceView=path.match(/^\/api\/invoices\/view\/([A-Za-z0-9_-]{30,})$/);
   if(invoiceView){
