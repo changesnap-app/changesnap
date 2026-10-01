@@ -23,3 +23,7 @@ footer[style] a{color:#294b3f;font-weight:600}footer[style] a:hover{text-decorat
 
 a.ghost[aria-current="page"]{background:#173f32;color:#fff;border-color:#173f32}header a.ghost:hover{background:#eef3ea}header a.ghost[aria-current="page"]:hover{background:#173f32}header a.brand{display:flex}
 main p a:not([class]),main span a:not([class]){color:#1f5a47;font-weight:700}
+@media(max-width:700px){#createBtn{width:100%;padding:14px}}
+main a:not([class]){color:#1f5a47;font-weight:700}
+[hidden]{display:none!important}
+#clearSig,#printBtn{background:#fff!important;border:1px solid #c4d6cb!important;color:#294b3f!important}#acceptBtn{background:#173f32!important;color:#fff!important;padding:14px 22px!important}@media(max-width:700px){#acceptBtn{flex:1}}
