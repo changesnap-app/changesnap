@@ -27,3 +27,5 @@ main p a:not([class]),main span a:not([class]){color:#1f5a47;font-weight:700}
 main a:not([class]){color:#1f5a47;font-weight:700}
 [hidden]{display:none!important}
 #clearSig,#printBtn{background:#fff!important;border:1px solid #c4d6cb!important;color:#294b3f!important}#acceptBtn{background:#173f32!important;color:#fff!important;padding:14px 22px!important}@media(max-width:700px){#acceptBtn{flex:1}}
+
+.plan ul{list-style:none;padding:0;margin:14px 0}.plan li{position:relative;padding-left:22px;margin:8px 0}.plan li:before{content:"";position:absolute;left:2px;top:.45em;width:6px;height:10px;border:solid #2f7d4f;border-width:0 2px 2px 0;transform:rotate(45deg) translateY(-30%)}.plannote{text-align:center;color:#587166;font-size:14px;margin:22px 0 0}
