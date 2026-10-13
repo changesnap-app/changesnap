@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /approve/
+Disallow: /job/
+Disallow: /contract/
+Disallow: /estimate/review/
+Disallow: /invoice/view/
+Sitemap: https://changesnap.onrender.com/sitemap.xml
