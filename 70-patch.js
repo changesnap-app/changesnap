@@ -7,3 +7,14 @@ once("let url=new URL(req.url,'http://local');","let url=new URL(req.url,'http:/
 fs.writeFileSync('server.js',s);
 // Count the extra tool pages in the visit counter.
 try{let v=fs.readFileSync('70-visits.js','utf8');v=v.replace('\\/estimate-template|','\\/estimate-template|\\/invoice-template|\\/markup-calculator|\\/punch-list-template|');fs.writeFileSync('70-visits.js',v)}catch(e){console.log('visits patch skipped')}
+
+// Add the free directory listing badge to the landing page only.
+{
+ const file='index.html';
+ let html=fs.readFileSync(file,'utf8');
+ if(!html.includes('https://launchbuff.com/products/jobneatly-gqqt8k')){
+  const badge='<div style="text-align:center;padding:16px;background:#f7f8f2"><a href="https://launchbuff.com/products/jobneatly-gqqt8k" target="_blank" rel="noopener noreferrer" title="Featured on LaunchBuff"><img src="https://launchbuff.com/badge-featured-light.svg" alt="Featured on LaunchBuff" width="128" height="40" style="display:inline-block;width:128px;height:40px" /></a></div>';
+  if(!html.includes('</body>'))throw Error('Landing page body anchor missing');
+  fs.writeFileSync(file,html.replace('</body>',badge+'</body>'));
+ }
+}
