@@ -19,9 +19,15 @@ function store({getPool=()=>null,dataDir}){
 function text(value,label,max,required=false){if(typeof value!=='string')fail('Enter '+label);const s=value.trim();if(s.length>max||(required&&!s))fail(label+' must be '+(required?'1-':'at most ')+max+' characters');return s}
 function instant(value,now){if(typeof value!=='string'||!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value))fail('Use a valid timestamp');const n=Date.parse(value);if(!Number.isFinite(n)||new Date(n).toISOString()!==value||n<Date.UTC(2000,0,1)||n>now+300000)fail('Time must be valid, from 2000 through five minutes ahead');return n}
 function fields(b,now){const start=instant(b.startedAt,now),end=instant(b.endedAt,now);if(end<=start||end-start>36*3600000)fail('End must follow start, within 36 hours');if(!Number.isInteger(b.breakMinutes)||b.breakMinutes<0||b.breakMinutes*60000>=end-start)fail('Unpaid break must be whole minutes, shorter than the session');return {startedAt:new Date(start).toISOString(),endedAt:new Date(end).toISOString(),breakMinutes:b.breakMinutes,note:text(b.note,'work note',1000)}}
+function earnings(b){
+ if(b.rateCents===null||b.rateCents===undefined)return {rateCents:null,currency:null};
+ if(!Number.isSafeInteger(b.rateCents)||b.rateCents<0||b.rateCents>100000000)fail('Enter an hourly rate from 0 to 1,000,000, with at most two decimal places');
+ if(!['ILS','USD','EUR','GBP','CAD','AUD'].includes(b.currency))fail('Choose a supported currency');
+ return {rateCents:b.rateCents,currency:b.currency};
+}
 function overlap(entries,entry,ignore){if(entries.some(e=>e.id!==ignore&&!e.voidedAt&&Date.parse(e.startedAt)<(entry.endedAt?Date.parse(entry.endedAt):Infinity)&&(!e.endedAt||Date.parse(e.endedAt)>Date.parse(entry.startedAt))))fail('This overlaps another work session. Review the existing record first.',409)}
 function csvCell(x){let s=String(x??'');if(/^[\s\x00-\x1f]*[=+@-]/.test(s)||/^[\t\r\n]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'}
-function csv(entries){const header=['Record ID','Project','Customer','Started UTC','Ended UTC','Break minutes','Net minutes','Work note','Entry kind','Version','Voided UTC'];const rows=entries.map(e=>[e.id,e.project,e.customer,e.startedAt,e.endedAt,e.breakMinutes,e.endedAt?((Date.parse(e.endedAt)-Date.parse(e.startedAt))/60000-e.breakMinutes).toFixed(3):'',e.note,e.kind,e.version,e.voidedAt||'']);return '\uFEFF'+[header,...rows].map(r=>r.map(csvCell).join(',')).join('\r\n')+'\r\n'}
+function csv(entries){const header=['Record ID','Project','Customer','Started UTC','Ended UTC','Break minutes','Net minutes','Work note','Entry kind','Version','Voided UTC','Hourly rate','Currency'];const rows=entries.map(e=>[e.id,e.project,e.customer,e.startedAt,e.endedAt,e.breakMinutes,e.endedAt?((Date.parse(e.endedAt)-Date.parse(e.startedAt))/60000-e.breakMinutes).toFixed(3):'',e.note,e.kind,e.version,e.voidedAt||'',e.rateCents==null?'':(e.rateCents/100).toFixed(2),e.currency||'']);return '\uFEFF'+[header,...rows].map(r=>r.map(csvCell).join(',')).join('\r\n')+'\r\n'}
 function apply(state,b,jobs,now){
  if(!b||typeof b!=='object'||Array.isArray(b))fail('Invalid request');
  if(typeof b.requestId!=='string'||! /^[a-zA-Z0-9_-]{16,80}$/.test(b.requestId))fail('Invalid request identifier');
@@ -30,15 +36,15 @@ function apply(state,b,jobs,now){
  if(state.operations.length>=20000)fail('Work-record safety limit reached. Export your records and contact support.',409);
  const next=clone(state),at=new Date(now).toISOString();let entry;
  if(b.action==='start'||b.action==='manual'){
-  const job=jobs.find(j=>j.jobId===b.jobId);if(!job)fail('Choose one of your existing jobs');
+  const job=b.jobId===''?{jobId:'',project:'Personal work',customer:''}:jobs.find(j=>j.jobId===b.jobId);if(!job)fail('Choose one of your existing jobs or personal work');
   if(next.entries.length>=5000)fail('Work-record safety limit reached. Export your records and contact support.',409);
   const data=b.action==='manual'?fields(b,now):{startedAt:at,endedAt:null,breakMinutes:0,note:text(b.note,'work note',1000)};
-  entry={id:'time_'+crypto.randomBytes(12).toString('hex'),jobId:job.jobId,project:job.project,customer:job.customer,...data,kind:b.action==='start'?'timer':'manual',version:1,createdAt:at,updatedAt:at,voidedAt:null,history:[]};overlap(next.entries,entry);entry.history.push({action:b.action,at,version:1});next.entries.push(entry);
+  entry={id:'time_'+crypto.randomBytes(12).toString('hex'),jobId:job.jobId,project:job.project,customer:job.customer,...data,...earnings(b),kind:b.action==='start'?'timer':'manual',version:1,createdAt:at,updatedAt:at,voidedAt:null,history:[]};overlap(next.entries,entry);entry.history.push({action:b.action,at,version:1});next.entries.push(entry);
  }else if(['stop','correct','void'].includes(b.action)){
   entry=next.entries.find(e=>e.id===b.id);if(!entry)fail('Work record not found',404);if(!Number.isInteger(b.version)||entry.version!==b.version)fail('This record changed in another tab. Refresh records before saving.',409);if(entry.voidedAt)fail('This record is already voided.',409);
-  const before={startedAt:entry.startedAt,endedAt:entry.endedAt,breakMinutes:entry.breakMinutes,note:entry.note,voidedAt:entry.voidedAt};
+  const before={startedAt:entry.startedAt,endedAt:entry.endedAt,breakMinutes:entry.breakMinutes,note:entry.note,voidedAt:entry.voidedAt,rateCents:entry.rateCents??null,currency:entry.currency??null};
   let reason='';if(b.action==='stop'){if(entry.endedAt)fail('This timer has already stopped.',409);const data=fields({startedAt:entry.startedAt,endedAt:at,breakMinutes:b.breakMinutes,note:b.note},now);Object.assign(entry,data);overlap(next.entries,entry,entry.id)}
-  if(b.action==='correct'){reason=text(b.reason,'correction reason',300,true);Object.assign(entry,fields(b,now));overlap(next.entries,entry,entry.id)}
+  if(b.action==='correct'){reason=text(b.reason,'correction reason',300,true);Object.assign(entry,fields(b,now));if(Object.hasOwn(b,'rateCents'))Object.assign(entry,earnings(b));overlap(next.entries,entry,entry.id)}
   if(b.action==='void'){reason=text(b.reason,'void reason',300,true);entry.voidedAt=at}
   entry.version++;entry.updatedAt=at;entry.history.push({action:b.action,at,version:entry.version,before,reason});
  }else fail('Unknown work-record action');
